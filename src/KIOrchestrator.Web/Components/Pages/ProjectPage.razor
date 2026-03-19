@@ -1,0 +1,42 @@
+@page "/project/{ProjectId:int}"
+@using KIOrchestrator.Data.Repositories
+@inject ProjectRepository ProjectRepo
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>@(project?.Name ?? "Projekt") - KI Orchestrator</PageTitle>
+
+@if (project == null)
+{
+    <p class="loading">Lade Projekt...</p>
+}
+else
+{
+    <div class="project-page">
+        <div class="project-info">
+            <h1>@project.Name</h1>
+            <p class="project-desc">@project.Description</p>
+            <span class="project-dir">@project.WorkingDirectory</span>
+        </div>
+        <div class="placeholder-chat">
+            <p>Chat und Plan-Bereich wird in Schritt 4-5 implementiert.</p>
+            <p>Projekt erfolgreich geladen.</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int ProjectId { get; set; }
+
+    private Project? project;
+
+    protected override async Task OnInitializedAsync()
+    {
+        project = await ProjectRepo.GetByIdAsync(ProjectId);
+        if (project == null)
+        {
+            Nav.NavigateTo("/");
+        }
+    }
+}

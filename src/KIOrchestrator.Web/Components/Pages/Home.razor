@@ -1,0 +1,209 @@
+@page "/"
+@using KIOrchestrator.Data.Repositories
+@inject ProjectRepository ProjectRepo
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>KI Orchestrator - Projekte</PageTitle>
+
+<div class="home-container">
+    <div class="home-header">
+        <h1>Projekte</h1>
+        <button class="btn-primary" @onclick="() => showCreateDialog = true">Neues Projekt</button>
+    </div>
+
+    @if (projects == null)
+    {
+        <p class="loading">Lade Projekte...</p>
+    }
+    else if (projects.Count == 0)
+    {
+        <div class="empty-state">
+            <p>Noch keine Projekte vorhanden.</p>
+            <p>Erstelle dein erstes Projekt um loszulegen.</p>
+        </div>
+    }
+    else
+    {
+        <div class="project-grid">
+            @foreach (var project in projects)
+            {
+                <div class="project-card" @onclick="() => OpenProject(project.Id)">
+                    <h3>@project.Name</h3>
+                    <p class="project-desc">@(string.IsNullOrEmpty(project.Description) ? "Keine Beschreibung" : project.Description)</p>
+                    <div class="project-meta">
+                        <span class="project-dir" title="@project.WorkingDirectory">@ShortenPath(project.WorkingDirectory)</span>
+                        <span class="project-date">@project.UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                    </div>
+                    <button class="btn-delete" @onclick="() => ConfirmDelete(project)" @onclick:stopPropagation="true">Loeschen</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (showCreateDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseDialog">
+        <div class="dialog" @onclick:stopPropagation="true">
+            <h2>Neues Projekt</h2>
+            <EditForm Model="newProject" OnValidSubmit="CreateProject" FormName="createProject">
+                <div class="form-group">
+                    <label>Name</label>
+                    <InputText @bind-Value="newProject.Name" placeholder="Projektname" />
+                </div>
+                <div class="form-group">
+                    <label>Beschreibung</label>
+                    <InputTextArea @bind-Value="newProject.Description" placeholder="Kurze Beschreibung des Projekts" rows="3" />
+                </div>
+                <div class="form-group">
+                    <label>Arbeitsverzeichnis</label>
+                    <div class="input-with-button">
+                        <InputText @bind-Value="newProject.WorkingDirectory" placeholder="z.B. D:\MeinProjekt" />
+                        <button type="button" class="btn-browse" @onclick="() => showFolderPicker = true" title="Verzeichnis durchsuchen">...</button>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="error-msg">@errorMessage</div>
+                }
+                <div class="dialog-actions">
+                    <button type="button" class="btn-secondary" @onclick="CloseDialog">Abbrechen</button>
+                    <button type="submit" class="btn-primary" disabled="@isCreating">
+                        @(isCreating ? "Erstelle..." : "Erstellen")
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (showFolderPicker)
+{
+    <KIOrchestrator.Web.Components.Shared.FolderPicker
+        InitialPath="@newProject.WorkingDirectory"
+        OnSelected="OnFolderSelected"
+        OnCancelled="() => showFolderPicker = false" />
+}
+
+@if (projectToDelete != null)
+{
+    <div class="dialog-overlay" @onclick="() => projectToDelete = null">
+        <div class="dialog dialog-small" @onclick:stopPropagation="true">
+            <h2>Projekt loeschen?</h2>
+            <p>Soll das Projekt "<strong>@projectToDelete.Name</strong>" wirklich geloescht werden?</p>
+            <div class="dialog-actions">
+                <button class="btn-secondary" @onclick="() => projectToDelete = null">Abbrechen</button>
+                <button class="btn-danger" @onclick="DeleteProject">Loeschen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Project>? projects;
+    private ProjectFormModel newProject = new();
+    private bool showCreateDialog;
+    private bool isCreating;
+    private string? errorMessage;
+    private Project? projectToDelete;
+    private bool showFolderPicker;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProjects();
+    }
+
+    private async Task LoadProjects()
+    {
+        projects = await ProjectRepo.GetAllAsync();
+    }
+
+    private void OpenProject(int id)
+    {
+        Nav.NavigateTo($"/project/{id}");
+    }
+
+    private async Task CreateProject()
+    {
+        errorMessage = null;
+        if (string.IsNullOrWhiteSpace(newProject.Name))
+        {
+            errorMessage = "Name ist erforderlich.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(newProject.WorkingDirectory))
+        {
+            errorMessage = "Arbeitsverzeichnis ist erforderlich.";
+            return;
+        }
+        if (await ProjectRepo.ExistsAsync(newProject.Name.Trim()))
+        {
+            errorMessage = "Ein Projekt mit diesem Namen existiert bereits.";
+            return;
+        }
+
+        isCreating = true;
+        try
+        {
+            var project = new Project
+            {
+                Name = newProject.Name.Trim(),
+                Description = newProject.Description?.Trim() ?? string.Empty,
+                WorkingDirectory = newProject.WorkingDirectory.Trim()
+            };
+            var created = await ProjectRepo.CreateAsync(project);
+            CloseDialog();
+            Nav.NavigateTo($"/project/{created.Id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private void ConfirmDelete(Project project)
+    {
+        projectToDelete = project;
+    }
+
+    private async Task DeleteProject()
+    {
+        if (projectToDelete != null)
+        {
+            await ProjectRepo.DeleteAsync(projectToDelete.Id);
+            projectToDelete = null;
+            await LoadProjects();
+        }
+    }
+
+    private void OnFolderSelected(string path)
+    {
+        newProject.WorkingDirectory = path;
+        showFolderPicker = false;
+    }
+
+    private void CloseDialog()
+    {
+        showCreateDialog = false;
+        newProject = new();
+        errorMessage = null;
+    }
+
+    private string ShortenPath(string path)
+    {
+        if (path.Length <= 40) return path;
+        return "..." + path[^37..];
+    }
+
+    private class ProjectFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string WorkingDirectory { get; set; } = string.Empty;
+    }
+}

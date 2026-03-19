@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KIOrchestrator.Core/KIOrchestrator.Core.csproj" />
+    <Project Path="src/KIOrchestrator.Data/KIOrchestrator.Data.csproj" />
+    <Project Path="src/KIOrchestrator.Web/KIOrchestrator.Web.csproj" />
+  </Folder>
+</Solution>

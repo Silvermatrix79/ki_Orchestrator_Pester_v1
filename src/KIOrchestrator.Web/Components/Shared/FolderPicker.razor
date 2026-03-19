@@ -1,0 +1,192 @@
+@using KIOrchestrator.Web.Services
+@inject FileSystemService FileSystem
+
+<div class="folder-picker-overlay" @onclick="Cancel">
+    <div class="folder-picker" @onclick:stopPropagation="true">
+        <div class="fp-header">
+            <h3>Verzeichnis auswaehlen</h3>
+            <button class="fp-close" @onclick="Cancel">X</button>
+        </div>
+
+        <div class="fp-path-bar">
+            <button class="fp-nav-btn" @onclick="GoUp" disabled="@(currentPath == null)" title="Uebergeordneter Ordner">^</button>
+            <input class="fp-path-input" @bind="manualPath" @bind:event="oninput"
+                   @onkeydown="OnPathKeyDown" placeholder="Pfad eingeben..." />
+            <button class="fp-nav-btn" @onclick="GoToManualPath" title="Zum Pfad navigieren">-></button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="fp-error">@errorMessage</div>
+        }
+
+        <div class="fp-content">
+            @if (currentPath == null)
+            {
+                @* Drive list *@
+                @foreach (var drive in drives)
+                {
+                    <div class="fp-item fp-drive" @onclick="() => NavigateTo(drive.Name)">
+                        <span class="fp-icon">[D]</span>
+                        <span class="fp-name">@drive.Label</span>
+                        <span class="fp-size">@FormatSize(drive.FreeSpace) frei</span>
+                    </div>
+                }
+            }
+            else
+            {
+                @if (directories.Count == 0)
+                {
+                    <div class="fp-empty">Keine Unterverzeichnisse</div>
+                }
+                else
+                {
+                    @foreach (var dir in directories)
+                    {
+                        <div class="fp-item @(dir.FullPath == selectedPath ? "fp-selected" : "")"
+                             @onclick="() => SelectDirectory(dir)"
+                             @ondblclick="() => NavigateTo(dir.FullPath)">
+                            <span class="fp-icon">@(dir.HasChildren ? "[+]" : "[ ]")</span>
+                            <span class="fp-name">@dir.Name</span>
+                        </div>
+                    }
+                }
+            }
+        </div>
+
+        <div class="fp-footer">
+            <span class="fp-selected-path" title="@GetDisplayPath()">@GetDisplayPath()</span>
+            <div class="fp-actions">
+                <button class="btn-secondary" @onclick="Cancel">Abbrechen</button>
+                <button class="btn-primary" @onclick="Confirm" disabled="@(string.IsNullOrEmpty(GetDisplayPath()))">Auswaehlen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? InitialPath { get; set; }
+    [Parameter] public EventCallback<string> OnSelected { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private List<DriveEntry> drives = [];
+    private List<DirectoryEntry> directories = [];
+    private string? currentPath;
+    private string? selectedPath;
+    private string manualPath = string.Empty;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        drives = FileSystem.GetDrives();
+
+        if (!string.IsNullOrEmpty(InitialPath) && FileSystem.DirectoryExists(InitialPath))
+        {
+            currentPath = InitialPath;
+            selectedPath = InitialPath;
+            manualPath = InitialPath;
+            LoadDirectories();
+        }
+    }
+
+    private void NavigateTo(string path)
+    {
+        errorMessage = null;
+        currentPath = path;
+        selectedPath = path;
+        manualPath = path;
+        LoadDirectories();
+    }
+
+    private void SelectDirectory(DirectoryEntry dir)
+    {
+        selectedPath = dir.FullPath;
+        manualPath = dir.FullPath;
+    }
+
+    private void GoUp()
+    {
+        if (currentPath == null) return;
+        var parent = FileSystem.GetParentPath(currentPath);
+        if (parent != null)
+        {
+            NavigateTo(parent);
+        }
+        else
+        {
+            // Back to drive list
+            currentPath = null;
+            selectedPath = null;
+            manualPath = string.Empty;
+            directories = [];
+        }
+    }
+
+    private void GoToManualPath()
+    {
+        errorMessage = null;
+        var path = manualPath.Trim();
+        if (string.IsNullOrEmpty(path)) return;
+
+        if (FileSystem.DirectoryExists(path))
+        {
+            NavigateTo(path);
+        }
+        else
+        {
+            errorMessage = "Verzeichnis existiert nicht.";
+        }
+    }
+
+    private void OnPathKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            GoToManualPath();
+        }
+    }
+
+    private void LoadDirectories()
+    {
+        try
+        {
+            directories = FileSystem.GetDirectories(currentPath!);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            errorMessage = "Zugriff verweigert.";
+            directories = [];
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            directories = [];
+        }
+    }
+
+    private string GetDisplayPath()
+    {
+        return selectedPath ?? currentPath ?? string.Empty;
+    }
+
+    private async Task Confirm()
+    {
+        var path = GetDisplayPath();
+        if (!string.IsNullOrEmpty(path))
+        {
+            await OnSelected.InvokeAsync(path);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        await OnCancelled.InvokeAsync();
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1_073_741_824) return $"{bytes / 1_073_741_824.0:F1} GB";
+        if (bytes >= 1_048_576) return $"{bytes / 1_048_576.0:F0} MB";
+        return $"{bytes / 1024.0:F0} KB";
+    }
+}
