@@ -60,6 +60,22 @@ public class FileSystemService
     {
         return Directory.Exists(path);
     }
+
+    public DirectoryEntry CreateDirectory(string parentPath, string name)
+    {
+        var fullPath = Path.Combine(parentPath, name);
+        var dirInfo = new DirectoryInfo(fullPath);
+        if (dirInfo.Exists)
+            throw new InvalidOperationException($"Verzeichnis '{name}' existiert bereits.");
+
+        dirInfo.Create();
+        return new DirectoryEntry
+        {
+            Name = dirInfo.Name,
+            FullPath = dirInfo.FullName,
+            HasChildren = false
+        };
+    }
 }
 
 public class DriveEntry

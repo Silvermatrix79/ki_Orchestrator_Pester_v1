@@ -90,6 +90,39 @@
     border-color: #e94560;
 }
 
+.fp-new-folder {
+    color: #2ecc71;
+    border-color: #2ecc71;
+}
+
+.fp-new-folder:hover:not(:disabled) {
+    background: #1a4a3a;
+    color: #2ecc71;
+}
+
+.fp-new-folder-bar {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.5rem 1.2rem;
+    background: #1a2a3e;
+    border-bottom: 1px solid #222;
+}
+
+.fp-new-folder-input {
+    flex: 1;
+    background: #0f3460;
+    border: 1px solid #2ecc71;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+.fp-new-folder-input:focus {
+    outline: none;
+    border-color: #27ae60;
+}
+
 .fp-error {
     color: #e74c3c;
     font-size: 0.8rem;

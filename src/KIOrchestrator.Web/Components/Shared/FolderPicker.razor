@@ -13,7 +13,18 @@
             <input class="fp-path-input" @bind="manualPath" @bind:event="oninput"
                    @onkeydown="OnPathKeyDown" placeholder="Pfad eingeben..." />
             <button class="fp-nav-btn" @onclick="GoToManualPath" title="Zum Pfad navigieren">-></button>
+            <button class="fp-nav-btn fp-new-folder" @onclick="ShowNewFolderInput" disabled="@(currentPath == null)" title="Neuer Ordner">+</button>
         </div>
+
+        @if (showNewFolder)
+        {
+            <div class="fp-new-folder-bar">
+                <input class="fp-new-folder-input" @bind="newFolderName" @bind:event="oninput"
+                       @onkeydown="OnNewFolderKeyDown" placeholder="Ordnername..." @ref="newFolderInputRef" />
+                <button class="fp-nav-btn" @onclick="CreateNewFolder" disabled="@(string.IsNullOrWhiteSpace(newFolderName))">OK</button>
+                <button class="fp-nav-btn" @onclick="CancelNewFolder">X</button>
+            </div>
+        }
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -75,6 +86,9 @@
     private string? selectedPath;
     private string manualPath = string.Empty;
     private string? errorMessage;
+    private bool showNewFolder;
+    private string newFolderName = string.Empty;
+    private ElementReference newFolderInputRef;
 
     protected override void OnInitialized()
     {
@@ -181,6 +195,47 @@
     private async Task Cancel()
     {
         await OnCancelled.InvokeAsync();
+    }
+
+    private void ShowNewFolderInput()
+    {
+        showNewFolder = true;
+        newFolderName = string.Empty;
+        errorMessage = null;
+    }
+
+    private void CancelNewFolder()
+    {
+        showNewFolder = false;
+        newFolderName = string.Empty;
+    }
+
+    private void CreateNewFolder()
+    {
+        if (currentPath == null || string.IsNullOrWhiteSpace(newFolderName)) return;
+        errorMessage = null;
+
+        try
+        {
+            var created = FileSystem.CreateDirectory(currentPath, newFolderName.Trim());
+            showNewFolder = false;
+            newFolderName = string.Empty;
+            LoadDirectories();
+            selectedPath = created.FullPath;
+            manualPath = created.FullPath;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void OnNewFolderKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            CreateNewFolder();
+        else if (e.Key == "Escape")
+            CancelNewFolder();
     }
 
     private static string FormatSize(long bytes)
